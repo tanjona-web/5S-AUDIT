@@ -105,12 +105,12 @@ def get_results():
     line = _norm_line(section, request.args.get("line", "Line 01"))
 
     conn = get_connection()
-    record = conn.execute(
+    records = conn.execute(
         """SELECT * FROM audit_records
            WHERE section = ? AND line = ?
-           ORDER BY id DESC LIMIT 1""",
+           ORDER BY id DESC""",
         (section, line),
-    ).fetchone()
+    ).fetchall()
     champion = conn.execute(
         "SELECT name, photo FROM champions WHERE section = ? AND line = ?",
         (section, line),
@@ -119,11 +119,25 @@ def get_results():
 
     label = f"Sewing — {line}" if section == "sewing" else section.capitalize()
 
-    if record is None:
+    def serialize_record(record):
+        return {
+            "id": record["id"],
+            "points": record["points"],
+            "rating": record["rating"],
+            "before": _text_list(record["comment_before"]),
+            "after": _text_list(record["comment_after"]),
+            "improvement": record["improvement"],
+            "photoBefore": _photo_list(record["photo_before"]),
+            "photoAfter": _photo_list(record["photo_after"]),
+        }
+
+    serialized_records = [serialize_record(item) for item in records]
+    if not serialized_records:
         return jsonify({
             "ok": True,
             "label": label,
             "record": None,
+            "records": [],
             "champion": {
                 "name": champion["name"] if champion else "—",
                 "photo": champion["photo"] if champion else None,
@@ -133,16 +147,8 @@ def get_results():
     return jsonify({
         "ok": True,
         "label": label,
-        "record": {
-            "id": record["id"],
-            "points": record["points"],
-            "rating": record["rating"],
-            "before": _text_list(record["comment_before"]),
-            "after": _text_list(record["comment_after"]),
-            "improvement": record["improvement"],
-            "photoBefore": _photo_list(record["photo_before"]),
-            "photoAfter": _photo_list(record["photo_after"]),
-        },
+        "record": serialized_records[0],
+        "records": serialized_records,
         "champion": {
             "name": champion["name"] if champion else "—",
             "photo": champion["photo"] if champion else None,

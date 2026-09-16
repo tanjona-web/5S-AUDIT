@@ -18,14 +18,10 @@
     <img class="brand-logo" src="{{ url_for('static', filename='images/logo-5s.jpg') }}" alt="Logo 5S">
     <div>
       <div class="t1">Daily 5S Audit</div>
-<<<<<<< HEAD
-=======
-      <div class="t2">Confection textile</div>
->>>>>>> 24edefd11645709997628c78e49b777fc1f94406
     </div>
   </div>
   <div class="nav-menu">
-    <button class="nav-item active" data-view="results">Résultats de l'audit</button>
+    <button class="nav-item active" data-view="results">Daily Tour</button>
     <button class="nav-item" data-view="audit">Nouvel Audit</button>
   </div>
 </nav>
@@ -35,7 +31,7 @@
   <div class="stage">
     <div class="results-head">
       <div>
-        <h1>Écran ligne de production</h1>
+        <h1>Daily 5S Tour</h1>
         <div class="sub">Dernier audit publié pour la section sélectionnée</div>
       </div>
       <div class="controls">
@@ -116,7 +112,6 @@
         <input type="password" id="loginPin" placeholder="••••" inputmode="numeric" maxlength="6" autocomplete="current-password">
       </div>
       <button class="login-submit" id="loginBtn">Se connecter</button>
-      <div class="login-hint">Accès réservé aux auditeurs 5S habilités.<br>Identifiant et code fournis par votre responsable qualité.</div>
     </div>
   </div>
 
@@ -276,6 +271,29 @@
       <h2>Audit publié</h2>
       <p id="confirmText">L'écran de la ligne a été mis à jour avec ce nouvel audit.</p>
       <button id="newAuditBtn">Nouvel audit</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="editOverlay">
+    <div class="confirm-card edit-card">
+      <h2>Modifier la paire Before / After</h2>
+      <label class="small" for="editBeforeComment">Commentaire Before</label>
+      <textarea id="editBeforeComment"></textarea>
+      <label class="small" for="editAfterComment">Commentaire After</label>
+      <textarea id="editAfterComment"></textarea>
+      <div class="edit-photo-actions">
+        <label class="edit-photo-btn">Photo Before
+          <input type="file" accept="image/*" id="editBeforePhoto">
+        </label>
+        <label class="edit-photo-btn">Photo After
+          <input type="file" accept="image/*" id="editAfterPhoto">
+        </label>
+      </div>
+      <div class="edit-photo-status" id="editPhotoStatus">Aucune nouvelle photo sélectionnée</div>
+      <div class="edit-modal-actions">
+        <button type="button" class="edit-cancel" id="editCancelBtn">Annuler</button>
+        <button type="button" id="editSaveBtn">Enregistrer</button>
+      </div>
     </div>
   </div>
 </section>
