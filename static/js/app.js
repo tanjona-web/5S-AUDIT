@@ -93,11 +93,12 @@ async function renderResults() {
     document.getElementById('badgeValue').textContent = "Aucun audit disponible pour cette section";
     return;
   }
-  const { record, champion, label } = payload;
+  const { record, records = [], champion, label } = payload;
   const seedLabel = 'Section : ' + label;
 
   document.getElementById('badgeValue').textContent = seedLabel;
-  if (!record) {
+  if (!records.length && !record) {
+    if (resultAuditTimer) clearInterval(resultAuditTimer);
     if (resultPhotoPairTimer) clearInterval(resultPhotoPairTimer);
     document.getElementById('photoBefore').innerHTML = '';
     document.getElementById('photoAfter').innerHTML = '';
@@ -112,18 +113,30 @@ async function renderResults() {
     document.getElementById('stars').innerHTML = '';
     return;
   }
-  renderResultPhotoPair(record.photoBefore, record.photoAfter, record.before, record.after, seedLabel);
-  document.getElementById('championPhoto').innerHTML = champion.photo
-    ? `<img src="${champion.photo}" style="width:100%;height:100%;object-fit:cover;">`
-    : portrait(seedLabel);
-  document.getElementById('championName').textContent = champion.name;
-  document.getElementById('points').textContent = record.points;
-  document.getElementById('improvement').textContent = record.improvement || '';
-  const starsEl = document.getElementById('stars');
-  starsEl.innerHTML = '';
-  for (let i = 1; i <= 5; i++) starsEl.innerHTML += starIcon(i <= record.rating);
+  if (resultAuditTimer) clearInterval(resultAuditTimer);
+  const showAudit = audit => {
+    renderResultPhotoPair(audit.photoBefore, audit.photoAfter, audit.before, audit.after, seedLabel);
+    document.getElementById('championPhoto').innerHTML = champion.photo
+      ? `<img src="${champion.photo}" style="width:100%;height:100%;object-fit:cover;">`
+      : portrait(seedLabel);
+    document.getElementById('championName').textContent = champion.name;
+    document.getElementById('points').textContent = audit.points;
+    document.getElementById('improvement').textContent = audit.improvement || '';
+    const starsEl = document.getElementById('stars');
+    starsEl.innerHTML = '';
+    for (let i = 1; i <= 5; i++) starsEl.innerHTML += starIcon(i <= audit.rating);
+  };
+  let auditIndex = 0;
+  showAudit(records[0] || record);
+  if (records.length > 1) {
+    resultAuditTimer = setInterval(() => {
+      auditIndex = (auditIndex + 1) % records.length;
+      showAudit(records[auditIndex]);
+    }, 7000);
+  }
 }
 let resultPhotoPairTimer = null;
+let resultAuditTimer = null;
 function renderResultPhotoPair(beforePhotos, afterPhotos, beforeComments, afterComments, seedLabel) {
   const before = Array.isArray(beforePhotos) ? beforePhotos : (beforePhotos ? [beforePhotos] : []);
   const after = Array.isArray(afterPhotos) ? afterPhotos : (afterPhotos ? [afterPhotos] : []);
