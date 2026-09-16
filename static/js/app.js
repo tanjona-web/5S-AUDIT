@@ -116,19 +116,20 @@ async function renderResults() {
     return;
   }
   if (resultAuditTimer) clearInterval(resultAuditTimer);
-  const weeklyResult = records[0] || record;
-  document.getElementById('championPhoto').innerHTML = champion.photo
-    ? `<img src="${champion.photo}" style="width:100%;height:100%;object-fit:cover;">`
-    : portrait(seedLabel);
-  document.getElementById('championName').textContent = champion.name;
-  document.getElementById('points').textContent = weeklyResult.points;
-  document.getElementById('improvement').textContent = weeklyResult.improvement || '';
-  const starsEl = document.getElementById('stars');
-  starsEl.innerHTML = '';
-  for (let i = 1; i <= 5; i++) starsEl.innerHTML += starIcon(i <= weeklyResult.rating);
-
   const showAudit = audit => {
     renderResultPhotoPair(audit.photoBefore, audit.photoAfter, audit.before, audit.after, seedLabel);
+    document.getElementById('championPhoto').innerHTML = champion.photo
+      ? `<img src="${champion.photo}" style="width:100%;height:100%;object-fit:cover;">`
+      : portrait(seedLabel);
+    document.getElementById('championName').textContent = champion.name;
+    document.getElementById('points').textContent = audit.points;
+    document.getElementById('improvement').textContent = audit.improvement || '';
+    const starsEl = document.getElementById('stars');
+    starsEl.innerHTML = '';
+    for (let i = 1; i <= 5; i++) starsEl.innerHTML += starIcon(i <= audit.rating);
+  };
+  let auditIndex = 0;
+  showAudit(records[0] || record);
   };
   let auditIndex = 0;
   showAudit(records[0] || record);
