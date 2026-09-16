@@ -6,8 +6,16 @@ Lancer avec :  python app.py
 Puis ouvrir :  http://127.0.0.1:5000
 """
 import json
+import base64
+import binascii
+from io import BytesIO
+from datetime import datetime
 
 from flask import Flask, jsonify, render_template, request
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image as ExcelImage
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from flask import send_file
 
 from db import LINES, get_connection, init_db
 
@@ -33,7 +41,7 @@ def login():
 
     conn = get_connection()
     row = conn.execute(
-        "SELECT id, name FROM auditors WHERE id = ? AND pin = ?",
+        "SELECT id, name, role FROM auditors WHERE id = ? AND pin = ?",
         (auditor_id, pin),
     ).fetchone()
     conn.close()
@@ -41,7 +49,9 @@ def login():
     if row is None:
         return jsonify({"ok": False, "error": "Identifiant ou code PIN incorrect."}), 401
 
-    return jsonify({"ok": True, "auditor": {"id": row["id"], "name": row["name"]}})
+    return jsonify({"ok": True, "auditor": {
+        "id": row["id"], "name": row["name"], "role": row["role"] or "Auditeur 5S",
+    }})
 
 
 # ----------------------------------------------------------------------
@@ -107,10 +117,18 @@ def get_results():
     ).fetchone()
     conn.close()
 
-    if record is None:
-        return jsonify({"ok": False, "error": "Aucun audit pour cette section/ligne."}), 404
-
     label = f"Sewing — {line}" if section == "sewing" else section.capitalize()
+
+    if record is None:
+        return jsonify({
+            "ok": True,
+            "label": label,
+            "record": None,
+            "champion": {
+                "name": champion["name"] if champion else "—",
+                "photo": champion["photo"] if champion else None,
+            },
+        })
 
     return jsonify({
         "ok": True,
@@ -186,15 +204,18 @@ def create_audit():
 def list_audits():
     conn = get_connection()
     rows = conn.execute(
-        """SELECT a.*, au.name AS auditor_name
+        """SELECT a.*, au.name AS auditor_name, au.role AS auditor_role
            FROM audit_records a LEFT JOIN auditors au ON au.id = a.auditor_id
+              WHERE a.auditor_id IS NOT NULL
            ORDER BY a.id DESC"""
     ).fetchall()
     conn.close()
     return jsonify({"ok": True, "audits": [
         {
             "id": row["id"], "section": row["section"], "line": row["line"],
-            "auditor": row["auditor_name"] or row["auditor_id"] or "—",
+            "auditorId": row["auditor_id"] or "—",
+            "auditorName": row["auditor_name"] or row["auditor_id"] or "—",
+            "auditorRole": row["auditor_role"] or "Auditeur 5S",
             "createdAt": row["created_at"],
             "photoBefore": _photo_list(row["photo_before"]),
             "photoAfter": _photo_list(row["photo_after"]),
@@ -205,6 +226,123 @@ def list_audits():
         }
         for row in rows
     ]})
+
+
+@app.route("/api/audits/export")
+def export_audits():
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT a.*, au.name AS auditor_name, au.role AS auditor_role
+           FROM audit_records a LEFT JOIN auditors au ON au.id = a.auditor_id
+           WHERE a.auditor_id IS NOT NULL
+           ORDER BY a.id DESC"""
+    ).fetchall()
+    conn.close()
+
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    thin_gray = Side(style="thin", color="D7DEE8")
+    card_border = Border(left=thin_gray, right=thin_gray, top=thin_gray, bottom=thin_gray)
+
+    for row in rows:
+        sheet = workbook.create_sheet(title=f"Audit {row['id']}")
+        sheet.sheet_view.showGridLines = False
+        for column in ("A", "B", "C", "D", "E", "F", "G", "H"):
+            sheet.column_dimensions[column].width = 13
+        for index in range(1, 14):
+            sheet.row_dimensions[index].height = 22
+
+        sheet.merge_cells("A1:H1")
+        title = sheet["A1"]
+        title.value = "Avant / Après"
+        title.font = Font(name="Calibri", size=18, bold=False, color="26364A")
+        title.alignment = Alignment(vertical="center")
+        sheet.row_dimensions[1].height = 32
+        sheet["A1"].border = Border(bottom=Side(style="thin", color="D7DEE8"))
+
+        sheet.merge_cells("A2:H2")
+        metadata = sheet["A2"]
+        metadata.value = (
+            f"Publication #{row['id']}  |  {row['section'].capitalize()}"
+            f" {row['line'] or ''}  |  {row['created_at']}  |  "
+            f"{row['auditor_name'] or row['auditor_id'] or '-'} — "
+            f"{row['auditor_role'] or 'Auditeur 5S'}"
+        )
+        metadata.font = Font(size=10, color="64748B")
+        metadata.alignment = Alignment(vertical="center")
+
+        sheet.merge_cells("A4:D4")
+        sheet.merge_cells("E4:H4")
+        before_label = sheet["A4"]
+        before_label.value = "●  Before"
+        before_label.font = Font(size=12, bold=True, color="C9232F")
+        after_label = sheet["E4"]
+        after_label.value = "●  After"
+        after_label.font = Font(size=12, bold=True, color="55A936")
+
+        before_photos = _photo_list(row["photo_before"])
+        after_photos = _photo_list(row["photo_after"])
+        _add_excel_photo(sheet, before_photos[0] if before_photos else None, "A5")
+        _add_excel_photo(sheet, after_photos[0] if after_photos else None, "E5")
+        for cell in ("A5", "E5"):
+            sheet[cell].border = card_border
+        sheet.merge_cells("A10:D10")
+        sheet.merge_cells("E10:H10")
+        sheet["A10"] = f"{len(before_photos)} photo{'s' if len(before_photos) != 1 else ''}"
+        sheet["E10"] = f"{len(after_photos)} photo{'s' if len(after_photos) != 1 else ''}"
+        for cell in ("A10", "E10"):
+            sheet[cell].font = Font(size=10, color="64748B")
+            sheet[cell].alignment = Alignment(horizontal="right")
+
+        sheet.merge_cells("A11:D11")
+        sheet.merge_cells("E11:H11")
+        sheet.merge_cells("A12:D13")
+        sheet.merge_cells("E12:H13")
+        for cell, comments in (("A12", _text_list(row["comment_before"])), ("E12", _text_list(row["comment_after"]))):
+            sheet[cell] = "COMMENTAIRE\n" + (comments[0] if comments else "Aucun commentaire")
+            sheet[cell].font = Font(size=11, color="64748B")
+            sheet[cell].alignment = Alignment(vertical="top", wrap_text=True)
+            sheet[cell].fill = PatternFill("solid", fgColor="F8FAFC")
+            sheet[cell].border = card_border
+        sheet["A11"] = "COMMENTAIRE"
+        sheet["E11"] = "COMMENTAIRE"
+        for cell in ("A11", "E11"):
+            sheet[cell].font = Font(size=9, color="B7791F", bold=True)
+            sheet[cell].alignment = Alignment(vertical="bottom")
+
+        sheet.merge_cells("A15:H15")
+        sheet["A15"] = f"Note : {row['rating'] or 0} / 5    |    Points : {row['points'] or 0}    |    Point à améliorer : {row['improvement'] or '-'}"
+        sheet["A15"].font = Font(size=10, color="475569")
+        sheet["A15"].alignment = Alignment(wrap_text=True)
+
+    if not rows:
+        sheet = workbook.create_sheet(title="Aucun audit")
+        sheet["A1"] = "Aucun audit publié"
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    filename = f"audits_5s_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+def _add_excel_photo(sheet, data_url, anchor):
+    if not data_url or "," not in data_url:
+        return
+    try:
+        image_data = base64.b64decode(data_url.split(",", 1)[1])
+        image = ExcelImage(BytesIO(image_data))
+        image.width = 385
+        image.height = 260
+        sheet.add_image(image, anchor)
+        sheet.row_dimensions[5].height = 195
+    except (ValueError, TypeError, binascii.Error):
+        return
 
 
 @app.route("/api/audits/<int:audit_id>", methods=["PUT", "DELETE"])

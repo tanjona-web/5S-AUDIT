@@ -34,34 +34,34 @@ navItems.forEach(item => {
    ICONES SVG DECORATIVES (aucune donnée réelle, purement visuel)
    ============================================================ */
 function tile(seed, warm) {
-  const c1 = warm ? '#8f1f24' : '#2c5270';
-  const c2 = warm ? '#b5292f' : '#3c6d90';
+  const c1 = warm ? '#941d2d' : '#2d6672';
+  const c2 = warm ? '#c9232f' : '#55a936';
   return `<svg viewBox="0 0 300 220" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
     <defs><linearGradient id="g${seed}" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="${c1}" stop-opacity="0.55"/>
       <stop offset="1" stop-color="${c2}" stop-opacity="0.15"/>
     </linearGradient></defs>
     <rect width="300" height="220" fill="url(#g${seed})"/>
-    <g stroke="#f2ede0" stroke-opacity="0.35" fill="none" stroke-width="2">
+    <g stroke="#fffdf5" stroke-opacity="0.4" fill="none" stroke-width="2">
       <path d="M40 150 q40 -70 90 -70 q60 0 90 60 q20 40 -10 60 h-160 q-25 -20 -10 -50 z"/>
       <path d="M100 90 q10 -25 40 -25 q35 0 40 30" />
     </g>
-    <circle cx="240" cy="55" r="16" fill="#f2ede0" fill-opacity="0.18"/>
+    <circle cx="240" cy="55" r="16" fill="#f4d34f" fill-opacity="0.28"/>
   </svg>`;
 }
 function portrait(seed) {
   return `<svg viewBox="0 0 300 260" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
     <defs><linearGradient id="p${seed}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3c6d90" stop-opacity="0.5"/>
-      <stop offset="1" stop-color="#0e1e2b" stop-opacity="0.6"/>
+      <stop offset="0" stop-color="#55a936" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#101820" stop-opacity="0.7"/>
     </linearGradient></defs>
     <rect width="300" height="260" fill="url(#p${seed})"/>
-    <circle cx="150" cy="100" r="46" fill="#f2ede0" fill-opacity="0.28"/>
-    <path d="M70 250 q80 -70 160 0 z" fill="#f2ede0" fill-opacity="0.22"/>
+    <circle cx="150" cy="100" r="46" fill="#f4d34f" fill-opacity="0.32"/>
+    <path d="M70 250 q80 -70 160 0 z" fill="#2d6672" fill-opacity="0.4"/>
   </svg>`;
 }
 function starIcon(filled) {
-  return `<svg viewBox="0 0 24 24" fill="${filled ? '#c69a3f' : 'none'}" stroke="#c69a3f" stroke-width="1.4">
+  return `<svg viewBox="0 0 24 24" fill="${filled ? '#f4d34f' : 'none'}" stroke="#f4d34f" stroke-width="1.4">
     <path d="M12 2.5l2.9 6.2 6.8.7-5.1 4.6 1.5 6.7L12 17.3l-6.1 3.4 1.5-6.7-5.1-4.6 6.8-.7z" stroke-linejoin="round"/>
   </svg>`;
 }
@@ -97,6 +97,21 @@ async function renderResults() {
   const seedLabel = 'Section : ' + label;
 
   document.getElementById('badgeValue').textContent = seedLabel;
+  if (!record) {
+    if (resultPhotoPairTimer) clearInterval(resultPhotoPairTimer);
+    document.getElementById('photoBefore').innerHTML = '';
+    document.getElementById('photoAfter').innerHTML = '';
+    document.getElementById('photoBeforeCount').textContent = '';
+    document.getElementById('photoAfterCount').textContent = '';
+    document.getElementById('commentBefore').textContent = '';
+    document.getElementById('commentAfter').textContent = '';
+    document.getElementById('championPhoto').innerHTML = '';
+    document.getElementById('championName').textContent = '';
+    document.getElementById('points').textContent = '';
+    document.getElementById('improvement').textContent = '';
+    document.getElementById('stars').innerHTML = '';
+    return;
+  }
   renderResultPhotoPair(record.photoBefore, record.photoAfter, record.before, record.after, seedLabel);
   document.getElementById('championPhoto').innerHTML = champion.photo
     ? `<img src="${champion.photo}" style="width:100%;height:100%;object-fit:cover;">`
@@ -118,10 +133,15 @@ function renderResultPhotoPair(beforePhotos, afterPhotos, beforeComments, afterC
   const afterEl = document.getElementById('photoAfter');
   if (resultPhotoPairTimer) clearInterval(resultPhotoPairTimer);
 
+  const pairCount = Math.max(before.length, after.length);
   const renderSide = (element, photos, seed, warm) => {
     element.innerHTML = photos.length
-      ? `<div class="photo-gallery">${photos.map(photo => `<img src="${photo}" alt="Photo d'audit">`).join('')}</div>`
-      : tile(seed, warm);
+      ? `<div class="photo-gallery"><div class="photo-track">${Array.from({ length: pairCount }, (_, index) => photos[index]
+        ? `<img src="${photos[index]}" alt="Photo d'audit">`
+        : `<div class="photo-placeholder">Aucune photo pour cette paire</div>`).join('')}</div></div>`
+      : pairCount > 1
+        ? `<div class="photo-gallery"><div class="photo-track">${Array.from({ length: pairCount }, () => '<div class="photo-placeholder">Aucune photo pour cette paire</div>').join('')}</div></div>`
+        : tile(seed, warm);
   };
   renderSide(beforeEl, before, 'b' + seedLabel, true);
   renderSide(afterEl, after, 'a' + seedLabel, false);
@@ -135,16 +155,13 @@ function renderResultPhotoPair(beforePhotos, afterPhotos, beforeComments, afterC
   document.getElementById('photoAfterCount').textContent = after.length
     ? `${after.length} photo${after.length > 1 ? 's' : ''}` : '';
 
-  const pairCount = Math.max(before.length, after.length);
   if (pairCount > 1) {
     let index = 0;
     const showPair = pairIndex => {
       [beforeEl, afterEl].forEach(element => {
-        const gallery = element.querySelector('.photo-gallery');
-        if (!gallery) return;
-        const galleryCount = gallery.children.length;
-        const galleryIndex = Math.min(pairIndex, galleryCount - 1);
-        gallery.scrollLeft = galleryIndex * gallery.clientWidth;
+        const track = element.querySelector('.photo-track');
+        if (!track) return;
+        track.style.transform = `translateX(-${pairIndex * 100}%)`;
       });
       showComments(pairIndex);
     };
@@ -183,7 +200,7 @@ async function attemptLogin() {
     });
     currentAuditor = auditor;
     loginError.classList.remove('show');
-    auditorLabel.textContent = `${auditor.name} (${auditor.id})`;
+    auditorLabel.textContent = `${auditor.name} — ${auditor.role} (${auditor.id})`;
     loginScreen.classList.add('hidden');
     auditApp.classList.add('unlocked');
   } catch (e) {
@@ -444,40 +461,126 @@ subnavItems.forEach(item => {
 });
 
 const auditHistory = document.getElementById('auditHistory');
+const auditHistoryCard = auditHistory.closest('.card');
+document.getElementById('exportExcelBtn').addEventListener('click', () => {
+  window.location.href = '/api/audits/export';
+});
 function auditLocation(audit) {
   return audit.section === 'sewing' ? `Sewing — ${audit.line}` : audit.section === 'cutting' ? 'Cutting' : 'Finishing';
+}
+function renderAuditPhotoPairs(audit) {
+  const pairCount = Math.max(audit.photoBefore.length, audit.photoAfter.length, 1);
+  return Array.from({ length: pairCount }, (_, index) => `
+    <div class="audit-history-pair">
+      <div class="audit-history-photo">
+        <h4>Before ${pairCount > 1 ? index + 1 : ''}</h4>
+        ${audit.photoBefore[index] ? `<div class="audit-history-photo-frame"><img src="${audit.photoBefore[index]}" alt="Photo Before ${index + 1}"></div>` : ''}
+        <div class="audit-history-comment">${audit.commentBefore[index] || 'Aucun commentaire'}</div>
+      </div>
+      <div class="audit-history-photo">
+        <h4>After ${pairCount > 1 ? index + 1 : ''}</h4>
+        ${audit.photoAfter[index] ? `<div class="audit-history-photo-frame"><img src="${audit.photoAfter[index]}" alt="Photo After ${index + 1}"></div>` : ''}
+        <div class="audit-history-comment">${audit.commentAfter[index] || 'Aucun commentaire'}</div>
+      </div>
+      <div class="audit-pair-actions">
+        <button type="button" data-edit-pair="${audit.id}" data-pair-index="${index}">MODIFIER</button>
+        <button type="button" class="delete" data-delete-pair="${audit.id}" data-pair-index="${index}">SUPPRIMER</button>
+      </div>
+    </div>`).join('');
 }
 async function renderAuditHistory() {
   try {
     const { audits } = await api('/api/audits');
+    auditHistoryCard.style.display = audits.length ? '' : 'none';
     auditHistory.innerHTML = audits.length ? audits.map(audit => `
       <div class="audit-history-card">
         <div class="audit-history-meta">
           <strong>Publication #${audit.id} · ${auditLocation(audit)} · ${audit.points} points</strong>
-          <span>${audit.createdAt} · ${audit.auditor} · ${audit.photoBefore.length + audit.photoAfter.length} photos</span>
+          <span>${audit.createdAt} · ${audit.auditorName} — ${audit.auditorRole} (${audit.auditorId}) · ${audit.photoBefore.length + audit.photoAfter.length} photos</span>
         </div>
-        <div class="audit-history-pair">
-          <div class="audit-history-photo">
-            <h4>Before</h4>
-            <div class="audit-history-photo-frame">${audit.photoBefore[0] ? `<img src="${audit.photoBefore[0]}" alt="Photo Before">` : tile('history-before-' + audit.id, true)}</div>
-            <div class="audit-history-comment">${audit.commentBefore[0] || 'Aucun commentaire'}</div>
-          </div>
-          <div class="audit-history-photo">
-            <h4>After</h4>
-            <div class="audit-history-photo-frame">${audit.photoAfter[0] ? `<img src="${audit.photoAfter[0]}" alt="Photo After">` : tile('history-after-' + audit.id, false)}</div>
-            <div class="audit-history-comment">${audit.commentAfter[0] || 'Aucun commentaire'}</div>
-          </div>
-        </div>
-        <div class="audit-actions">
-          <button type="button" data-edit="${audit.id}">MODIFIER</button>
-          <button type="button" class="delete" data-delete="${audit.id}">SUPPRIMER</button>
-        </div>
+        ${renderAuditPhotoPairs(audit)}
       </div>`).join('') : '<div class="history-empty">Aucun audit publié.</div>';
-    auditHistory.querySelectorAll('[data-edit]').forEach(button => button.addEventListener('click', () => editAudit(audits.find(audit => audit.id === Number(button.dataset.edit)))));
-    auditHistory.querySelectorAll('[data-delete]').forEach(button => button.addEventListener('click', () => deleteAudit(Number(button.dataset.delete))));
+    auditHistory.querySelectorAll('[data-edit-pair]').forEach(button => button.addEventListener('click', () => {
+      const audit = audits.find(item => item.id === Number(button.dataset.editPair));
+      editAuditPair(audit, Number(button.dataset.pairIndex)).catch(error => {
+        window.alert(error.data?.error || error.message || 'La modification n’a pas pu être enregistrée.');
+      });
+    }));
+    auditHistory.querySelectorAll('[data-delete-pair]').forEach(button => button.addEventListener('click', () => {
+      const audit = audits.find(item => item.id === Number(button.dataset.deletePair));
+      deleteAuditPair(audit, Number(button.dataset.pairIndex)).catch(error => {
+        window.alert(error.data?.error || error.message || 'La suppression n’a pas pu être enregistrée.');
+      });
+    }));
   } catch (e) {
+    auditHistoryCard.style.display = 'none';
     auditHistory.innerHTML = `<div class="history-empty">${e.data?.error || 'Impossible de charger les audits.'}</div>`;
   }
+}
+function choosePhoto() {
+  return new Promise(resolve => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return resolve(null);
+      const reader = new FileReader();
+      reader.onload = event => resolve(event.target.result);
+      reader.readAsDataURL(file);
+    });
+    input.click();
+  });
+}
+async function saveAuditPair(audit, index, changes) {
+  const beforePhotos = [...audit.photoBefore];
+  const afterPhotos = [...audit.photoAfter];
+  const beforeComments = Array.isArray(audit.commentBefore) ? [...audit.commentBefore] : [audit.commentBefore || ''];
+  const afterComments = Array.isArray(audit.commentAfter) ? [...audit.commentAfter] : [audit.commentAfter || ''];
+  if (changes.beforePhoto) beforePhotos[index] = changes.beforePhoto;
+  if (changes.afterPhoto) afterPhotos[index] = changes.afterPhoto;
+  beforeComments[index] = changes.beforeComment;
+  afterComments[index] = changes.afterComment;
+  await api(`/api/audits/${audit.id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ photoBefore: beforePhotos, photoAfter: afterPhotos, commentBefore: beforeComments, commentAfter: afterComments, improvement: audit.improvement, points: audit.points, rating: audit.rating }),
+  });
+  await renderAuditHistory();
+  renderResults();
+}
+async function editAuditPair(audit, index) {
+  const beforeComments = Array.isArray(audit.commentBefore) ? audit.commentBefore : [audit.commentBefore || ''];
+  const afterComments = Array.isArray(audit.commentAfter) ? audit.commentAfter : [audit.commentAfter || ''];
+  const beforeComment = window.prompt('Commentaire Before', beforeComments[index] || '');
+  if (beforeComment === null) return;
+  const afterComment = window.prompt('Commentaire After', afterComments[index] || '');
+  if (afterComment === null) return;
+  const changeBefore = confirm('Remplacer la photo Before de cette paire ?');
+  const beforePhoto = changeBefore ? await choosePhoto() : null;
+  const changeAfter = confirm('Remplacer la photo After de cette paire ?');
+  const afterPhoto = changeAfter ? await choosePhoto() : null;
+  await saveAuditPair(audit, index, { beforeComment, afterComment, beforePhoto, afterPhoto });
+}
+async function deleteAuditPair(audit, index) {
+  if (!confirm('Supprimer cette paire Before / After ?')) return;
+  const pairCount = Math.max(audit.photoBefore.length, audit.photoAfter.length, audit.commentBefore.length, audit.commentAfter.length);
+  if (pairCount <= 1) {
+    await api(`/api/audits/${audit.id}`, { method: 'DELETE' });
+    await renderAuditHistory();
+    renderResults();
+    return;
+  }
+  const beforePhotos = audit.photoBefore.filter((_, photoIndex) => photoIndex !== index);
+  const afterPhotos = audit.photoAfter.filter((_, photoIndex) => photoIndex !== index);
+  const beforeComments = audit.commentBefore.filter((_, commentIndex) => commentIndex !== index);
+  const afterComments = audit.commentAfter.filter((_, commentIndex) => commentIndex !== index);
+  await api(`/api/audits/${audit.id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ photoBefore: beforePhotos, photoAfter: afterPhotos, commentBefore: beforeComments, commentAfter: afterComments, improvement: audit.improvement, points: audit.points, rating: audit.rating }),
+  });
+  await renderAuditHistory();
+  renderResults();
 }
 async function editAudit(audit) {
   const commentBefore = prompt('Commentaire Before', audit.commentBefore);

@@ -9,9 +9,10 @@ DB_PATH = Path(__file__).parent / "5s_audit.db"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS auditors (
-    id   TEXT PRIMARY KEY,
-    pin  TEXT NOT NULL,
-    name TEXT NOT NULL
+    id    TEXT PRIMARY KEY,
+    pin   TEXT NOT NULL,
+    name  TEXT NOT NULL,
+    role  TEXT NOT NULL DEFAULT 'Auditeur 5S'
 );
 
 CREATE TABLE IF NOT EXISTS champions (
@@ -44,9 +45,9 @@ LINES = [f"Line {str(i).zfill(2)}" for i in range(1, 9)]
 
 # Données de démonstration reprises telles quelles du prototype front-end.
 SEED_AUDITORS = [
-    ("FARA01", "1234", "Fara N."),
-    ("TOJO02", "2580", "Tojo A."),
-    ("NIRINA3", "1357", "Nirina L."),
+    ("TANJONA", "1234", "USER", "IE Officer GSP"),
+    ("TOJO02", "2580", "Tojo A.", "Superviseur production"),
+    ("NIRINA3", "1357", "Nirina L.", "Responsable qualité"),
 ]
 
 SEED_CHAMPIONS = [
@@ -118,10 +119,39 @@ def init_db():
     conn = get_connection()
     conn.executescript(SCHEMA)
 
+    auditor_columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(auditors)")
+    }
+    if "role" not in auditor_columns:
+        conn.execute("ALTER TABLE auditors ADD COLUMN role TEXT NOT NULL DEFAULT 'Auditeur 5S'")
+
+    tanjona = next((auditor for auditor in SEED_AUDITORS if auditor[0] == "TANJONA"), None)
+    legacy_fara = conn.execute(
+        "SELECT id FROM auditors WHERE id = 'FARA01'"
+    ).fetchone()
+    current_tanjona = conn.execute(
+        "SELECT id FROM auditors WHERE id = 'TANJONA'"
+    ).fetchone()
+    if tanjona and legacy_fara and not current_tanjona:
+        _, pin, name, role = tanjona
+        conn.execute(
+            "INSERT INTO auditors (id, pin, name, role) VALUES (?, ?, ?, ?)",
+            ("TANJONA", pin, name, role),
+        )
+        conn.execute(
+            "UPDATE audit_records SET auditor_id = 'TANJONA' WHERE auditor_id = 'FARA01'"
+        )
+        conn.execute("DELETE FROM auditors WHERE id = 'FARA01'")
+
+    conn.executemany(
+        "UPDATE auditors SET role = ? WHERE id = ? AND role = 'Auditeur 5S'",
+        [(role, auditor_id) for auditor_id, _, _, role in SEED_AUDITORS],
+    )
+
     already_seeded = conn.execute("SELECT COUNT(*) AS n FROM auditors").fetchone()["n"] > 0
     if not already_seeded:
         conn.executemany(
-            "INSERT INTO auditors (id, pin, name) VALUES (?, ?, ?)", SEED_AUDITORS
+            "INSERT INTO auditors (id, pin, name, role) VALUES (?, ?, ?, ?)", SEED_AUDITORS
         )
         conn.executemany(
             "INSERT INTO champions (section, line, name, photo) VALUES (?, ?, ?, NULL)",
@@ -137,5 +167,5 @@ def init_db():
                 for (sec, line, points, rating, before, after, improvement) in SEED_RESULTS
             ],
         )
-        conn.commit()
+    conn.commit()
     conn.close()
