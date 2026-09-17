@@ -8,6 +8,7 @@ const LINES = Array.from({ length: 8 }, (_, i) => 'Line ' + String(i + 1).padSta
 async function api(path, options) {
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
     ...options,
   });
   const data = await res.json().catch(() => ({}));
@@ -94,6 +95,9 @@ async function renderResults() {
     return;
   }
   const { record, records = [], champion, label } = payload;
+  const snapshot = JSON.stringify({ label, records, champion });
+  if (snapshot === resultsSnapshot) return;
+  resultsSnapshot = snapshot;
   const seedLabel = 'Section : ' + label;
 
   document.getElementById('badgeValue').textContent = seedLabel;
@@ -141,6 +145,16 @@ async function renderResults() {
 }
 let resultPhotoPairTimer = null;
 let resultAuditTimer = null;
+let resultRefreshTimer = null;
+let resultsSnapshot = '';
+
+function startResultsRefresh() {
+  if (resultRefreshTimer) clearInterval(resultRefreshTimer);
+  resultRefreshTimer = setInterval(() => {
+    if (document.getElementById('view-results').classList.contains('active')) renderResults();
+  }, 5000);
+}
+
 function renderResultPhotoPair(beforePhotos, afterPhotos, beforeComments, afterComments, seedLabel) {
   const before = Array.isArray(beforePhotos) ? beforePhotos : (beforePhotos ? [beforePhotos] : []);
   const after = Array.isArray(afterPhotos) ? afterPhotos : (afterPhotos ? [afterPhotos] : []);
@@ -190,6 +204,7 @@ sectionSel.addEventListener('change', () => { refreshLineOptions(); renderResult
 lineSel.addEventListener('change', renderResults);
 refreshLineOptions();
 renderResults();
+startResultsRefresh();
 
 /* ============================================================
    VUE 2 — LOGIN, authentification via POST /api/login
@@ -463,6 +478,7 @@ document.getElementById('newAuditBtn').addEventListener('click', () => {
 const subnavItems = document.querySelectorAll('.subnav-item');
 const auditSubviews = document.querySelectorAll('.audit-subview');
 const submitBar = document.getElementById('submitBar');
+let auditHistoryRefreshTimer = null;
 subnavItems.forEach(item => {
   item.addEventListener('click', () => {
     subnavItems.forEach(i => i.classList.remove('active'));
@@ -471,7 +487,16 @@ subnavItems.forEach(item => {
     auditSubviews.forEach(v => v.classList.toggle('active', v.id === (target === 'form' ? 'auditFormSection' : target === 'history' ? 'historySection' : 'championsSection')));
     submitBar.style.display = target === 'form' ? '' : 'none';
     if (target === 'champions') loadChampionIntoEditor();
-    if (target === 'history') renderAuditHistory();
+    if (auditHistoryRefreshTimer) {
+      clearInterval(auditHistoryRefreshTimer);
+      auditHistoryRefreshTimer = null;
+    }
+    if (target === 'history') {
+      renderAuditHistory();
+      auditHistoryRefreshTimer = setInterval(() => {
+        if (document.getElementById('view-audit').classList.contains('active')) renderAuditHistory();
+      }, 5000);
+    }
   });
 });
 
